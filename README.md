@@ -105,7 +105,7 @@ After running `./run.sh`, you can access your desktop via:
 - Python 3 (for noVNC)
 - wayvnc
 - Xvfb (for headless X11 displays)
-- weston or other Wayland compositor
+- Hyprland or other wlroots compatible Wayland compositor
 - SSH client
 
 ## License
