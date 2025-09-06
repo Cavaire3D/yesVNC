@@ -1,0 +1,12 @@
+{
+    "webPort": 8080,
+    "websocketPort": 6080,
+    "vncHost": "localhost",
+    "vncPort": 5903,
+    "title": "YesVNC - Remote Desktop",
+    "autoConnect": false,
+    "encryption": false,
+    "resizeSession": true,
+    "showDotCursor": false,
+    "logging": "warn"
+}

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YesVNC - Remote Desktop</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTMgM0gyMVYyMUgzVjNaIiBzdHJva2U9IiM0Yjc2ODgiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0iIzEwMTgyOCIvPgo8cGF0aCBkPSJNNyA3SDE3VjE3SDdWN1oiIHN0cm9rZT0iIzM0ZDM5OSIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+CjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjIiIGZpbGw9IiMzNGQzOTkiLz4KPC9zdmc+">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 3H21V21H3V3Z" stroke="#4b7688" stroke-width="2" fill="#101828"/>
+                    <path d="M7 7H17V17H7V7Z" stroke="#34d399" stroke-width="2" fill="none"/>
+                    <circle cx="12" cy="12" r="2" fill="#34d399"/>
+                </svg>
+                <h1>YesVNC</h1>
+            </div>
+            <div class="status" id="status">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Disconnected</span>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="connection-panel" id="connectionPanel">
+                <div class="panel-header">
+                    <h2>Connect to Remote Desktop</h2>
+                    <p>Enter connection details to access your remote desktop</p>
+                </div>
+
+                <form class="connection-form" id="connectionForm">
+                    <div class="form-group">
+                        <label for="host">Host</label>
+                        <input type="text" id="host" name="host" value="localhost" placeholder="localhost or IP address">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="port">Port</label>
+                        <input type="number" id="port" name="port" value="6080" placeholder="6080">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password (optional)</label>
+                        <input type="password" id="password" name="password" placeholder="VNC password">
+                    </div>
+
+                    <div class="form-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="encrypt" name="encrypt">
+                            <span class="checkmark"></span>
+                            Use encryption
+                        </label>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="resize" name="resize" checked>
+                            <span class="checkmark"></span>
+                            Resize remote session
+                        </label>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="viewOnly" name="viewOnly">
+                            <span class="checkmark"></span>
+                            View only
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="connectBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 12L16 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M12 8L16 12L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Connect
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="disconnectBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Disconnect
+                        </button>
+                    </div>
+                </form>
+
+                <div class="quick-actions">
+                    <h3>Quick Actions</h3>
+                    <div class="action-buttons">
+                        <button class="btn btn-outline" id="fullscreenBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 3H5C3.89543 3 3 3.89543 3 5V8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M21 8V5C21 3.89543 20.1046 3 19 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M16 21H19C20.1046 21 21 20.1046 21 19V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M3 16V19C3 20.1046 3.89543 21 5 21H8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Fullscreen
+                        </button>
+                        <button class="btn btn-outline" id="ctrlAltDelBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                                <path d="M7 15L7 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M17 15L17 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Ctrl+Alt+Del
+                        </button>
+                        <button class="btn btn-outline" id="screenshotBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M23 19C23 20.1046 22.1046 21 21 21H3C1.89543 21 1 20.1046 1 19V8C1 6.89543 1.89543 6 3 6H7L9 4H15L17 6H21C22.1046 6 23 6.89543 23 8V19Z" stroke="currentColor" stroke-width="2" fill="none"/>
+                                <circle cx="12" cy="13" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+                            </svg>
+                            Screenshot
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="vnc-container" id="vncContainer" style="display: none;">
+                <div class="vnc-toolbar">
+                    <div class="toolbar-left">
+                        <button class="btn btn-small" id="showPanelBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Settings
+                        </button>
+                    </div>
+                    <div class="toolbar-right">
+                        <span class="connection-info" id="connectionInfo"></span>
+                    </div>
+                </div>
+                <div class="vnc-screen" id="vncScreen">
+                    <!-- noVNC will be embedded here -->
+                </div>
+            </div>
+        </main>
+
+        <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p id="loadingText">Connecting...</p>
+            </div>
+        </div>
+
+        <div class="notification" id="notification" style="display: none;">
+            <div class="notification-content">
+                <span id="notificationText"></span>
+                <button class="notification-close" id="notificationClose">&times;</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
