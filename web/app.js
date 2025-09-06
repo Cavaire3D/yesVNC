@@ -300,9 +300,9 @@ class YesVNCClient {
 
     onConnectionError(error) {
         this.connecting = false;
-        this.hideLoading();
-        this.updateStatus('disconnected', 'Connection failed');
-        this.showNotification(`Connection failed: ${error.message}`, 'error');
+        // this.hideLoading();
+        // this.updateStatus('disconnected', 'Connection failed');
+        // this.showNotification(`Connection failed: ${error.message}`, 'error');
     }
 
     disconnect() {
