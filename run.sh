@@ -3,6 +3,15 @@
 # YesVNC Production Runner
 # Automatically installs dependencies and starts both VNC server and web client
 
+# Load configuration
+source "$(dirname "$0")/config/load-config.sh"
+
+# Get config values
+WEB_PORT=$(get_config "web_port" "8080")
+VNC_PORT=$(get_config "vnc_port" "5903")
+VNC_HOST=$(get_config "vnc_host" "localhost")
+WEBSOCKET_PORT=$(get_config "websocket_port" "80")
+
 set -e
 
 # Colors for output
@@ -22,15 +31,43 @@ echo "==============================="
 # Create logs directory if it doesn't exist
 mkdir -p "$LOG_DIR"
 
-# Function to cleanup on exit
+# Function to cleanup all project-related processes
 cleanup() {
-    echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    # Kill VNC server and web client processes
-    pkill -f "start-vnc-server\|start-web-client\|wayvnc\|websockify" 2>/dev/null || true
+    echo -e "\n${YELLOW}🧹 Cleaning up YesVNC processes...${NC}"
+    
+    # Kill main processes
+    pkill -f "start-vnc-server\|start-web-client\|run.sh" 2>/dev/null || true
+    
+    # Kill VNC and related processes
+    pkill -f "wayvnc\|websockify\|Xvfb\|Xwayland" 2>/dev/null || true
+    
+    # Kill any remaining Python HTTP servers
+    pkill -f "python3 -m http.server $WEB_PORT" 2>/dev/null || true
+    
+    # Kill any remaining websockify processes on our ports
+    for port in $WEB_PORT $WEBSOCKET_PORT $VNC_PORT; do
+        if ss -tuln | grep -q ":$port "; then
+            echo -e "  ${YELLOW}Killing process on port $port${NC}"
+            fuser -k "$port/tcp" 2>/dev/null || true
+            # Identify sudo process and kill it
+            sudo kill -9 $(sudo lsof -t -i :$port) 2>/dev/null || true
+        fi
+    done
+    
+    # Give processes a moment to terminate
+    sleep 1
+    
+    # Verify cleanup
+    RUNNING_PROCESSES=$(pgrep -f "start-vnc-server\|start-web-client\|wayvnc\|websockify\|Xvfb\|Xwayland" || true)
+    if [ -n "$RUNNING_PROCESSES" ]; then
+        echo -e "  ${YELLOW}Some processes did not terminate cleanly, forcing...${NC}"
+        pkill -9 -f "start-vnc-server\|start-web-client\|wayvnc\|websockify\|Xvfb\|Xwayland" 2>/dev/null || true
+    fi
+    
     echo -e "${GREEN}✅ Cleanup completed${NC}"
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
 
 # Check if dependencies are installed
 echo -e "${BLUE}🔍 Checking dependencies...${NC}"
@@ -86,21 +123,51 @@ else
 fi
 
 # Wait a bit for VNC server to fully initialize
-sleep 2
+sleep 3
 
 # Start web client
 echo -e "\n${BLUE}🌐 Starting web client...${NC}"
 if [ -f "$SCRIPT_DIR/start-web-client.sh" ]; then
-    bash "$SCRIPT_DIR/start-web-client.sh" &
+    # Start the web client in the background
+    bash "$SCRIPT_DIR/start-web-client.sh" > "$LOG_DIR/web-client.log" 2>&1 &
     WEB_PID=$!
-    sleep 3
     
-    # Check if web client started successfully
-    if kill -0 $WEB_PID 2>/dev/null; then
-        echo -e "${GREEN}✅ Web client started (PID: $WEB_PID)${NC}"
-    else
-        echo -e "${RED}❌ Web client failed to start${NC}"
+    # Initial wait for the process to start
+    sleep 1
+    
+    # Check if the process is still running after initial wait
+    if ! kill -0 $WEB_PID 2>/dev/null; then
+        echo -e "${RED}❌ Web client process failed to start${NC}"
         exit 1
+    fi
+    
+    # Give more time for the web client to start, especially if it needs sudo
+    echo -e "${YELLOW}⏳ Waiting for web client to start (may take a few seconds)...${NC}"
+    
+    # Wait up to 30 seconds for the web client to start
+    WEB_STARTED=false
+    for i in {1..30}; do
+        # Check if the process is still running
+        if ! kill -0 $WEB_PID 2>/dev/null; then
+            echo -e "${RED}❌ Web client process stopped unexpectedly${NC}"
+            exit 1
+        fi
+        
+        # Check if the web server is responding
+        if curl -s -o /dev/null --connect-timeout 1 "http://localhost:${WEB_PORT}"; then
+            WEB_STARTED=true
+            break
+        fi
+        
+        sleep 1
+    done
+    
+    if [ "$WEB_STARTED" = true ]; then
+        echo -e "${GREEN}✅ Web client started successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Web client is taking longer than expected to start${NC}"
+        echo -e "${YELLOW}   Check $LOG_DIR/web-client.log for details${NC}"
+        # Don't exit here, as the process might still be starting
     fi
 else
     echo -e "${RED}❌ start-web-client.sh not found!${NC}"
@@ -111,12 +178,12 @@ fi
 echo -e "\n${GREEN}🎉 YesVNC is now running!${NC}"
 echo "==============================="
 echo -e "${BLUE}📊 Connection Information:${NC}"
-echo "  🌐 Web Interface: http://localhost:8080"
-echo "  🖥️  VNC Server: localhost:5903"
-echo "  🔌 WebSocket Proxy: localhost:6080"
+echo -e "  🌐 Web Interface: http://localhost:${WEB_PORT}"
+echo "  🖥️  VNC Server: ${VNC_HOST}:${VNC_PORT}"
+echo "  🔌 WebSocket Proxy: localhost:${WEBSOCKET_PORT}"
 echo ""
 echo -e "${YELLOW}📋 Usage:${NC}"
-echo "  1. Open http://localhost:8080 in your web browser"
+echo "  1. Open http://localhost:${WEB_PORT} in your web browser"
 echo "  2. Click 'Connect' to access your desktop"
 echo "  3. Press Ctrl+C to stop all services"
 echo ""

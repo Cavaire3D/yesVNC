@@ -8,25 +8,54 @@ set -e
 # Get script directory for absolute paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source configuration
-CONFIG_FILE="$SCRIPT_DIR/config/vnc-config.json"
+# Source the config loader to ensure config exists and load functions
+source "$SCRIPT_DIR/config/load-config.sh"
+
+# Set paths
 LOG_DIR="$SCRIPT_DIR/logs"
-DISPLAY_NUM=${VNC_DISPLAY:-3}
-VNC_PORT=${VNC_PORT:-5903}
-HEADLESS=${HEADLESS:-true}
-# Detect platform and set appropriate compositor
-if command -v pacman &> /dev/null; then
-    # Arch Linux - use Hyprland
-    COMPOSITOR=${COMPOSITOR:-hyprland}
-else
-    # Other distributions - use Wayfire
-    COMPOSITOR=${COMPOSITOR:-wayfire}
-fi
+
+# Read configuration with defaults
+VNC_DISPLAY=$(get_config "server.display" "3")
+VNC_PORT=$(get_config "server.port" "5903")
+HEADLESS=$(get_config "server.headless" "true")
+WIDTH=$(get_config "server.resolution.width" "1920")
+HEIGHT=$(get_config "server.resolution.height" "1080")
+DEPTH=$(get_config "server.resolution.depth" "24")
+VNC_HOST=$(get_config "server.vnc.host" "localhost")
+VNC_TARGET_PORT=$(get_config "server.vnc.port" "5903")
+
+# Set compositor
+COMPOSITOR=$(get_config "server.compositor" "$(command -v pacman &> /dev/null && echo "hyprland" || echo "wayfire")")
 
 echo "🚀 Starting YesVNC Server..."
 
 # Create logs directory
 mkdir -p "$LOG_DIR"
+
+# Function to find and kill existing processes
+kill_existing_instances() {
+    echo "🔍 Looking for existing VNC server processes..."
+    
+    # Kill any existing wayvnc processes
+    local wayvnc_pids=$(pgrep -f "wayvnc" || true)
+    if [ ! -z "$wayvnc_pids" ]; then
+        echo "🛑 Found existing wayvnc processes (PIDs: $wayvnc_pids), killing them..."
+        kill $wayvnc_pids 2>/dev/null || true
+    fi
+    
+    # Kill any existing Xvfb processes on our display
+    local xvfb_pids=$(pgrep -f "Xvfb.*:$VNC_DISPLAY " || true)
+    if [ ! -z "$xvfb_pids" ]; then
+        echo "🛑 Found existing Xvfb processes on display :$VNC_DISPLAY (PIDs: $xvfb_pids), killing them..."
+        kill $xvfb_pids 2>/dev/null || true
+    fi
+    
+    # Give processes a moment to shut down
+    sleep 1
+}
+# Kill any existing instances before starting
+kill_existing_instances
+
 
 # Function to cleanup on exit
 cleanup() {
@@ -50,35 +79,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Check if configuration exists
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "📝 Creating default VNC configuration..."
-    cat > "$CONFIG_FILE" << EOF
-{
-    "display": $DISPLAY_NUM,
-    "port": $VNC_PORT,
-    "headless": $HEADLESS,
-    "compositor": "$COMPOSITOR",
-    "width": 1920,
-    "height": 1080,
-    "depth": 24
-}
-EOF
-fi
-
-# Read configuration
-VNC_DISPLAY=$(jq -r '.display // 3' "$CONFIG_FILE")
-VNC_PORT=$(jq -r '.port // 5903' "$CONFIG_FILE")
-HEADLESS=$(jq -r '.headless // true' "$CONFIG_FILE")
-# Get compositor from config, with platform-specific fallback
-if command -v pacman &> /dev/null; then
-    COMPOSITOR=$(jq -r '.compositor // "hyprland"' "$CONFIG_FILE")
-else
-    COMPOSITOR=$(jq -r '.compositor // "wayfire"' "$CONFIG_FILE")
-fi
-WIDTH=$(jq -r '.width // 1920' "$CONFIG_FILE")
-HEIGHT=$(jq -r '.height // 1080' "$CONFIG_FILE")
-DEPTH=$(jq -r '.depth // 24' "$CONFIG_FILE")
+# Configuration already loaded at the top of the script
 
 echo "📊 Configuration:"
 echo "  Display: :$VNC_DISPLAY"
@@ -167,7 +168,7 @@ if [ "$HEADLESS" = "true" ]; then
                 export HYPRLAND_LOG_WLR=1
                 
                 # Start Hyprland with headless backend
-                Hyprland --socket "$WAYLAND_SOCKET" > "$LOG_DIR/hyprland.log" 2>&1 &
+                Hyprland > "$LOG_DIR/hyprland.log" 2>&1 &
                 COMPOSITOR_PID=$!
             else
                 echo "⚠️  Unknown compositor: $COMPOSITOR, falling back to X11 mode"

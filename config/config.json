@@ -1,0 +1,27 @@
+{
+    "server": {
+        "display": 3,
+        "port": 5903,
+        "headless": true,
+        "compositor": "hyprland",
+        "resolution": {
+            "width": 1920,
+            "height": 1080,
+            "depth": 24
+        },
+        "vnc": {
+            "host": "localhost",
+            "port": 5903
+        }
+    },
+    "web": {
+        "port": 8080,
+        "websocketPort": 6080,
+        "title": "YesVNC - Remote Desktop",
+        "autoConnect": false,
+        "encryption": false,
+        "resizeSession": true,
+        "showDotCursor": false,
+        "logging": "warn"
+    }
+}

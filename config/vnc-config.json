@@ -1,9 +1,0 @@
-{
-    "display": 3,
-    "port": 5903,
-    "headless": true,
-    "compositor": "hyprland",
-    "width": 1920,
-    "height": 1080,
-    "depth": 24
-}
