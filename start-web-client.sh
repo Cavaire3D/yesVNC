@@ -65,9 +65,9 @@ cleanup() {
         kill -TERM "$HTTP_SERVER_PID" 2>/dev/null || true
         
     fi
-    
-    # Clean up any remaining websockify processes we might have started
-    pkill -f "websockify.*$WEBSOCKET_PORT" 2>/dev/null || true
+    #Only run these commands if     
+    sudo pkill -f "websockify.*$WEBSOCKET_PORT" 2>/dev/null || true
+    sudo pkill -f "python3 -m http.server.*$WEB_PORT" 2>/dev/null || true
 }
 
 trap cleanup EXIT
@@ -97,14 +97,27 @@ is_websockify_running() {
     fi
     return 1
 }
-
-# Function to check if a port is available or running websockify
+is_http_running() {
+    local port=$1
+    if sudo ss -ltnup | grep -q ":$port.*python3"; then
+        local pid=$(sudo ss -ltnup | grep ":$port" | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
+        echo "✅ Found existing HTTP server process (PID: $pid) on port $port"
+        return 0
+    fi
+    return 1
+}
+# Function to check if a port is available or running websockify/ http server
 check_port_available() {
     local port=$1
     
     # First check if websockify is already running on this port
     if is_websockify_running "$port"; then
         # If it's websockify, we can use this port
+        return 0
+    fi
+
+    # Check if http server is running on this port
+    if is_http_running "$port"; then
         return 0
     fi
     
@@ -122,33 +135,64 @@ check_port_available() {
     return 0  # Port is available
 }
 
-# Check if the requested port is available
-if ! check_port_available "$WEBSOCKET_PORT"; then
-    echo "⚠️  Port $WEBSOCKET_PORT is already in use."
-    
-    # Try to find an available port between 8080-8090
-    new_port=""
-    for new_port in {8080..8090}; do
-        if check_port_available "$new_port"; then
-            echo "🔍 Found available port: $new_port"
-            read -p "Would you like to use port $new_port instead? [Y/n] " -r
-            if [[ $REPLY =~ ^[Yy]?$ ]]; then
-                WEBSOCKET_PORT=$new_port
-                echo "✅ Using port $WEBSOCKET_PORT"
-                break
-            else
-                echo "❌ Port $WEBSOCKET_PORT is in use. Please choose a different port and try again."
-                exit 1
-            fi
-        fi
-    done
-    
-    if [ "$WEBSOCKET_PORT" -ne "$new_port" ]; then
-        echo "❌ Could not find an available port. Please free up port $WEBSOCKET_PORT or specify a different port."
-        exit 1
-    fi
-fi
+# Check if the websocket port is available
+# if ! check_port_available "$WEBSOCKET_PORT"; then
+#     echo "   Using port $WEBSOCKET_PORT for websocket connections"
+#     echo ""
 
+  
+
+#     # Make sure the port is in the allowed range for unprivileged users8080-8090
+#     new_port=""
+#     for new_port in {8080..8090}; do
+#         if check_port_available "$new_port"; then
+#             echo " Found available port: $new_port"
+#             read -p "Would you like to use port $new_port instead? [Y/n] " -r
+#             if [[ $REPLY =~ ^[Yy]?$ ]]; then
+#                 WEBSOCKET_PORT=$new_port
+#                 echo "✅ Using port $WEBSOCKET_PORT"
+#                 break
+#             else
+#                 echo "❌ Port $WEBSOCKET_PORT is in use. Please choose a different port and try again."
+#                 exit 1
+#             fi
+#         fi
+#     done
+    
+#     if [ "$WEBSOCKET_PORT" -ne "$new_port" ]; then
+#         echo "❌ Could not find an available port. Please free up port $WEBSOCKET_PORT or specify a different port."
+#         exit 1
+#     fi
+# fi
+# # Check if the web port is available
+# if ! check_port_available "$WEB_PORT"; then
+#     echo "⚠️  Port $WEB_PORT is already in use by another process."
+    
+#     # Try to find an available port between 8080-8090
+#     new_web_port=""
+#     for p in $(seq 8080 8090); do
+#         if check_port_available "$p"; then
+#             new_web_port=$p
+#             echo "✅ Found available port: $new_web_port"
+#             read -p "Would you like to use port $new_web_port instead? [Y/n] " -r
+#             if [[ $REPLY =~ ^[Yy]?$ ]]; then
+#                 WEB_PORT=$new_web_port
+#                 echo "✅ Using port $WEB_PORT for web interface"
+#                 break
+#             else
+#                 echo "❌ Port $WEB_PORT is in use. Please choose a different port and try again."
+#                 exit 1
+#             fi
+#         fi
+#     done
+    
+#     if [ -z "$new_web_port" ]; then
+#         echo "❌ Could not find an available port. Please free up port $WEB_PORT or specify a different port."
+#         exit 1
+#     fi
+# fi
+
+echo ""
 # Function to check if a port is privileged (below 1024)
 is_privileged_port() {
     [ "$1" -lt 1024 ]
@@ -220,18 +264,22 @@ echo "🌍 Starting HTTP server on port $WEB_PORT..."
 touch "$LOG_DIR/http-server.log"
 chmod 666 "$LOG_DIR/http-server.log" 2>/dev/null || true
 
-# Start HTTP server with better error handling
+# Start HTTP server with better error handling  and check if http server is already running
 cd web
-if ! check_privileged_port "$WEB_PORT"; then
-    python3 -m http.server $WEB_PORT >> "$LOG_DIR/http-server.log" 2>&1 &
-    HTTP_SERVER_PID=$!
+if is_http_running "$WEB_PORT"; then
+    echo "✅ HTTP server already running on port $WEB_PORT"
+    HTTP_SERVER_PID=$(sudo ss -ltnup | grep ":$WEB_PORT" | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
 else
-    if ! sudo -n true 2>/dev/null; then
-        echo "🔑 sudo access is required for port $WEB_PORT. Please enter your password when prompted."
-    fi
-    sudo python3 -m http.server $WEB_PORT >> "$LOG_DIR/http-server.log" 2>&1 &
-    HTTP_SERVER_PID=$!
-fi
+    if ! check_privileged_port "$WEB_PORT"; then
+        python3 -m http.server $WEB_PORT >> "$LOG_DIR/http-server.log" 2>&1 &
+        HTTP_SERVER_PID=$!
+    else
+        if ! sudo -n true 2>/dev/null; then
+            echo "🔑 sudo access is required for port $WEB_PORT. Please enter your password when prompted."
+        fi
+        sudo python3 -m http.server $WEB_PORT >> "$LOG_DIR/http-server.log" 2>&1 &
+        HTTP_SERVER_PID=$!
+fi    fi
 cd ..
 
 # Wait a moment for HTTP server to start
@@ -324,7 +372,7 @@ while true; do
     if ! is_process_running "$HTTP_SERVER_PID" "http.server"; then
         if [ $SECONDS -lt 300 ]; then  # Only try to restart in first 5 minutes
             cd web
-            python3 -m http.server $WEB_PORT >> "../$LOG_DIR/http-server.log" 2>&1 &
+            python3 -m http.server $WEB_PORT >> "$LOG_DIR/http-server.log" 2>&1 &
             HTTP_SERVER_PID=$!
             cd ..
             sleep 1

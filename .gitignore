@@ -1,7 +1,8 @@
 # Logs
 logs/*.log
 *.log
-
+websockify_record.log
+websockify_record.log.*
 # Runtime directories and files
 noVNC/
 websockify/
